@@ -1,6 +1,6 @@
 ---
 title: "HW2 STA521"
-author: '[Your Name Here, netid and github username here]'
+author: 'Bingruo Wu/ bw199/ Bingruo-Wu'
 date: "Due September 12, 2019 10am"
 output:
   pdf_document: default
@@ -17,94 +17,171 @@ Readings: Chapters 3-4, 8-9 and Appendix in Weisberg [Applied Linear Regression]
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This exercise involves the UN data set from `alr3` package. Install `alr3` and the `car` packages and load the data to answer the following questions adding your code in the code chunks.  Please add appropriate code to the chunks to suppress messages and warnings as needed once you are sure the code is working properly and remove instructions if no longer needed. Figures should have informative captions. Please switch the output to pdf for your final version to upload to Sakai. **Remove these instructions for final submission**
-
 
 ## Exploratory Data Analysis
 
-0.  Preliminary read in the data.  After testing, modify the code chunk so that output, messages and warnings are suppressed.  *Exclude text from final*
-
-```{r data}
+```{r data,  message=FALSE}
 library(alr3)
 data(UN3, package="alr3")
 help(UN3) 
 library(car)
+library(dplyr)
+library(GGally)
+library(outliers)
+library(ggplot2)
+library(knitr)
 ```
 
 
 1. Create a summary of the data.  How many variables have missing data?  Which are quantitative and which are qualtitative?
 
-```{r}
-
+```{r data summery}
+summary(UN3)
 ```
 
+From the summary above, we can see that there are 7 variables having missing data, which are: ModernC, Change, PPgdp, Frate, Pop, Fertility and Purban. They are all qualitative, so there is no quantitative variable. 
 
 2. Investigate the predictors graphically, using scatterplots or other tools of your choice. Create some plots
-highlighting the relationships among the predictors. Comment
-on your findings regarding trying to predict `ModernC` from the other variables.  Are there potential outliers, nonlinear relationships or transformations that appear to be needed based on your graphical EDA?
+highlighting the relationships among the predictors. Comment on your findings regarding trying to predict `ModernC` from the other variables.  Are there potential outliers, nonlinear relationships or transformations that appear to be needed based on your graphical EDA?
 
-```{r}
-
+```{r data EDA}
+UN <- UN3 %>% na.omit() # get rid of missing data for ggpairs plots
+ggpairs(UN)
 ```
+
+
+From the plots above, we can see that "ModernC" increases as "Purban" increases, decreases as "fertility" rate increases and decreases as the variable "Change" increases.So we can tell that  "ModernC"  has linear relationships with "Change","Fertility" and "Purban". And it seems that there is no obvious linear relationship bewteen "ModernC" and "Frate" from above scatterplot, so maybe they have a non-linear relationship. Besides, dots are clustered in "ModernC" vs "PPgdp" and "ModernC" vs "Pop", which suggests we may need to transfer "PPgdp" and "Pop". Also, from "ModernC" vs "Pop", we can tell outliers may exist since there are two dots that are very far from other dots.
+
 
 ## Model Fitting
 
 3.  Use the `lm()` function to perform a multiple linear regression with `ModernC` as the response and all other variables as the predictors, using the formula `ModernC ~ .`, where the `.` includes all remaining variables in the dataframe.  Create  diagnostic residual plot from the linear model object and comment on results regarding assumptions.  How many observations are used in your model fitting?
 
-```{r}
-
+```{r model fitting}
+lm_allpreditors <- lm(ModernC~Change + Frate + PPgdp + Pop + Fertility + Purban, data = UN3)
+par(mfrow=c(2,2))
+plot(lm_allpreditors)
 ```
+
+From the "Residual vs Fitted" plot, we can see that residuals spread randomly and nearly equally around 0 line, indicating that the relationship between repsonse varaible and predictor varibales is linear, but there still have some outliers.The "Normal Q-Q" plot also indicates there might have some potential outliers, but residuals basically have a normal distribution since standardized residual dots are lined well on the straight dashed line in the plot. In the "Scale-Location" plot, residuals are spread equally along the range of fitted values at first, but spread wider and skew downward later, which means residuals may have different variance when fitted values are getting larger. Also, it seems that there are more dots at right side of this plot.  
+In addition,"Residual vs Leverage" plot shows there is no influential case, since all points are inside Cook's distance.  
+So all observations are used in my model fitting, there is no need to exclude any observation. However, "China" and "India" have higher leverage than other cases in the last plot, which means we may need to pay more attention to these two cases.
+
 
 4. Examine added variable plots `car::avPlot` or `car::avPlots`  for your model above. Are there any plots that suggest that transformations are needed for any of the terms in the model? Describe. Is it likely that any of the localities are influential for any of the terms?  Which localities?  Which terms?  
 
-```{r}
-
+```{r avplot}
+car::avPlots(lm(ModernC~Change + Frate + PPgdp + Pop + Fertility + Purban, data = UN3))
 ```
+
+Here, those added-variables plots suggest that term "Pop"  and term "PPgdp" may need log transformations since the slopes of their plots with "ModernC" are too small. In the meantime, dots in the fourth graph are all clustered in the left, which shows we need to transfer variable "Pop".
+As for the influential localities of each term, these Added-Variable Plots suggest the following:  
+Kuwaito and Cook island are the influenctial localities of term: **"Change"**.  
+Azerbaijan is the influential locality of term: **"Change"**,  **"Frate"**, **"PPgdp"**, **"Pop"**, **"Fertility"**, **"Purban"**.  
+Poland is the influential locality of term:: **"Change"**,  **"Frate"**, **"PPgdp"**, **"Fertility"**, **"Purban"**.   
 
 5.  Using the multivariate BoxCox `car::powerTransform`  find appropriate transformations of the response and predictor variables  for  the linear model.  If any predictors are negative, you may need to transform so that they are non-negative.  Summarize the resulting transformations.
 
 
-```{r}
-
+```{r transformation}
+UN3$Change1 <- with(UN3, Change + 2) 
+# Variable "Change" has some negative numbers
+# so we add 2 to make them positive and it won't influence our regression model.
+trans<-car::powerTransform(UN3[, 3:8], family="bcnPower")
+respon <- car::powerTransform(UN3[, 1], family = "bcnPower")
+trans$roundlam 
+respon$roundlam
 ```
 
-6. Given the selected transformations of the predictors, verify the transformation of the response using `MASS::boxcox` or `car::boxCox` and justify.  Do you get the same transformation if you used `car::powerTransform` above? Do you get the same transformation for the response if you do not transform any of the predictors?  Discuss briefly the findings.
+
+`car::powerTransform` returns the values of $\lambda$ for the transformations of the predictor and response variables. In practice, $\lambda$ is rounded before being used to transform the outcome. When the rounded value is 0, we use log-transformation; when the rounded value is 1, we do not need to apply any transformations. Therefore, we apply log-transformation to these three variables: PPgdp, Pop, Fertility and we do not need to apply transformation to the response variable.
 
 
-```{r}
+6. Given the selected transformations of the predictors, verify the transformation of the response using `MASS::boxcox` or `car::boxCox` and justify.  Do you get the same transformation if you used `car::powerTransform` above? Do you get the same transformation for the response if you do not transform any of the predictors? Discuss briefly the findings.
 
+
+```{r }
+new_lm<-lm(ModernC~Change + Frate + log(PPgdp) + log(Pop) + log(Fertility) + Purban, data = UN3)
+car::boxCox(new_lm)
+old_lm<-lm(ModernC~Change + Frate + PPgdp + Pop + Fertility + Purban, data = UN3)
+car::boxCox(old_lm)
 ```
+
+ `car::boxCox` gives the log-likelihood profile of our linear model and we can get $\hat\lambda$ from this graph. The first graph tells us that $\hat{\lambda}$ is close to 1 and can be rounded to 1, which is the same as the answer we get from using `car::powerTransform` above. So we are more certain that we do not need to transfer the response variable.    
+When we do not transform any predictor variabels, the log-likelihood profile of this linear model is shown in the second graph. and the value of $\hat\lambda$ is close to 1 and can be rounded to 1 as well, which means we do not need to transfer the repsonse variable either in this situation.    
+Therfore, from the argument above, we have the same transformation for the reponse variable no matter we transfer the predictor variables or not.
+
 
 7.  Fit the regression using the transformed variables.  Provide residual plots and added variables plots and comment.  If you feel that you need additional transformations of either the response or predictors, repeat any steps until you feel satisfied with the model and residuals.
 
 ```{r}
+new_lm<-lm(ModernC~Change + Frate + log(PPgdp) + log(Pop) + log(Fertility) + Purban, data = UN3)
+par(mfrow=c(2,2))
+plot(new_lm)
+car::avPlots(new_lm)
+```
+Let's consider residual plots and added variable plots seperately.  
 
+For residual plots, "Residuals vs Fitted" and "Scale-Location" graphs point out two same outliers: Poland and Cook Islands, and "Residual vs Fitted" still shows the linear relationship between response and predictor variables. "Scale-Location" has the same trend as the former plot, which is dots spreading equally along the range of fitted values at first and skewing downward later. But compared to the former plot, dots in this "Scale-Location" are more well-distributed in the whole graph; there is no specific side that has more dots. From "Residuals vs Leverage", we can see that the leverage of each dot decreases in our new model, The largest leverage is only about 0.16, which is much smaller than the former model, where "China" has the highest leverage around 0.6.  
+
+As for the added varaibles plots, dots are spread more equally after we transfer the predictor variables and all fitted lines are very smooth. Also, the slope of each fitted line is more interpretable here (not too large or too small). So it suggests that we don't need to perform any further transformation to each variable.  
+
+
+8.  Are there any outliers or influential points in the data?  Explain.  If so, refit the model after removing any outliers/influential points and comment on residual plots.  
+
+By performthing the outlier tests, we find that there is no outliers since no studentized residuals with Bonferroni p < 0.05. "Poland" is the ponit with the largest residual but still not an outlier. By checking dots' Cook's distance, we can find there are 6 influential points because influential points are defined by their Cook's Distances are exceeding $4/n$ here.  
+
+```{r check outliers/influntial points}
+# check outliers
+car::outlierTest(new_lm)
+# Use Cook's Distance after removing the missing data to check the influential points
+rownames(UN)[cooks.distance(new_lm) > 4/nrow(UN)]
 ```
 
-
-8.  Are there any outliers or influential points in the data?  Explain.  If so, refit the model after removing any outliers/influential points and comment on residual plots.
-
-
-```{r}
-
+Therefore, we refit the model by deleting those influential ponits and then plot the residual plots.  
+```{r refit model}
+new_lm2 <- lm(ModernC~Change + Frate + log(PPgdp) + log(Pop) + log(Fertility) + Purban, data = UN, subset = !cooks.distance(new_lm) > 4/nrow(UN))
+par(mfrow=c(2,2))
+plot(new_lm2)
 ```
 
-## Summary of Results
+From the residual plots above, we can see that response and predictor variables still have linear relationship and residuals are still normally distributed, but the fitted line in "Scale-Location" is more skewing downward.  
+There is not much difference in "Residuals vs Levarage" and leverage of each dot is basically the same as before.  
+These residual plots are similar to our last residual plots, but some dots still have the potential to be outliers or influential points, like Nicaragua and Portugal. It is inevitable that not every dot is going to be lined well beside our fitted line, because errors of each model cannot be erased.
 
-9. For your final model, provide summaries of coefficients with 95% confidence intervals in a nice table with interpretations of each coefficient.  These should be in terms of the original units! 
 
+## Summary of Results 
 
-```{r}
+9. For your final model, provide summaries of coefficients with 95% confidence intervals in a nice table with interpretations of each coefficient.  These should be in terms of the original units!  
 
+The 95% confidencce interval table of each coefficient is shown below and here is the interpretation:   
+
+For every one percent increase in the annual population growth rate, the expected increase in percent of unmarried women using a modern method of contraception is 4.70%, with all else held constant.  
+For every one percent increase in the percent of females over age 15 economically active, the expected increase in percent of unmarried women using a modern method of contraception is 0.160%, with all else held constant.  
+For every ten percent increase in per capita GDP in 2001, the expected increase in percent of unmarried women using a modern method of contraception is 0.584%, with all else held constant.  
+For every ten percent increase in Population, the expected increase in percent of unmarried women using a modern method of contraception is 0.160%, with all else held constant.  
+For every ten percent increase in fertility, the expected decrease in percent of unmarried women using a modern method of contraception is 2.46%, with all else held constant.  
+For every one percent increase in the urban population, the expected decrease in percent of unmarried women using a modern method of contraception is 0.0235%, with all else held constant.  
+
+```{r }
+table <- data.frame(new_lm2$coefficients, confint(new_lm2, level = 0.95))
+colnames(table) <- c("Estimated","Lower 2.5%", "Upper 97.5%")
+table<-round(table,3)
+kable(table)
 ```
+
 
 
 10. Provide a paragraph summarizing your final model  and findings suitable for the US envoy to the UN after adjusting for outliers or influential points.   You should provide a justification for any case deletions in your final model.
 
+My final model can be written as:
 
-```{r}
+$$
+Y=-6.93+4.70X_1+0.160X_2+6.13\text{log}(X_3)+1.68\text{log}(X_4)-25.8\text{log}(X_5)-0.0235X_6
+$$
 
-```
+Where Y represents variabel "ModernC"; $X_1$ represents "Change"; $X_2$ represents "Frate";$X_3$ represents PPgdp; $X_4$ represents "Pop"; $X_5$ represents "Fertility";$X_6$ represents "Purban". In order to get this model, I deleted 6 influential cases, which are "Armenia","China", "Cook.Islands", "Italy", "Kuwait" and "Poland".  
+After interpretating this model, I find population growth, no matter total population growth or annual population growth, can lead to an increase in the percent of unmarried women using a modern method of contraception and if UN wants to increase this percentage, increasing the per capita GDP can be a good idea. Besides, finding some methods to control the fertility rate can also increase the percentage of unmarried women using a modern method of contraception.
 
 
 ## Methodology
@@ -113,15 +190,57 @@ on your findings regarding trying to predict `ModernC` from the other variables.
 
 11. Exercise 9.12 from ALR
 
+
 Using  $X^TX = X^T_{(i)}X_{(i)} + x_i x_i^T$ where the subscript $(i)$ means without the ith case, show that 
 
 $$
 ( X^T_{(i)}X_{(i)})^{-1} = (X^TX)^{-1} + \frac{(X^TX)^{-1}x_ix_i^T  (X^TX)^{-1}}{1 - h_{ii}}
-$$
+$$                   
 
-where $h_{ii}$ is the $i$th diagonal element of $H = X(X^TX)^{-1}X^T$ using direct multiplication and simplify in terms of_ $h_{ii}$.
+where $h_{ii}$ is the $i$th diagonal element of $H = X(X^TX)^{-1}X^T$ using direct multiplication and simplify in terms of $h_{ii}$.
+
+From $X^TX = X^T_{(i)}X_{(i)} + x_i x_i^T$, we can get $X^T_{(i)}X_{(i)}= X^TX - x_i x_i^T$ and multiply left and right side of this equation to the left and right side of the euqation we need to prove respectively.
+
+$$
+\begin{aligned}
+(X^T_{(i)}X_{(i)})^{-1}*(X^T_{(i)}X_{(i)}) = ((X^TX)^{-1} + \frac{(X^TX)^{-1}x_ix_i^T  (X^TX)^{-1}}{1 - h_{ii}})*(X^TX - x_i x_i^T)
+\end{aligned}
+$$
+The left side of this equation is an identity matrix $I$, and we can compute the right side now:
+
+$$
+\begin{aligned}
+& ((X^TX)^{-1} + \frac{(X^TX)^{-1}x_ix_i^T  (X^TX)^{-1}}{1 - h_{ii}})*(X^TX - x_i x_i^T)\\
+&=(X^TX)^{-1}X^TX-(X^TX)^{-1}x_ix_i^T+\frac{(X^TX)^{-1}x_ix_i^T  (X^TX)^{-1}}{1 - h_{ii}}X^TX- \frac{(X^TX)^{-1}x_ix_i^T  (X^TX)^{-1}}{1 - h_{ii}}x_ix_i^T\\
+&=I-(X^TX)^{-1}x_ix_i^T+\frac{(X^TX)^{-1}x_ix_i^T}{1 - h_{ii}}-\frac{(X^TX)^{-1}x_ix_i^T(X^TX)^{-1}x_ix_i^T}{1 - h_{ii}}\\
+&=I-(X^TX)^{-1}x_ix_i^T+\frac{(X^TX)^{-1}x_i(x_i^T-x_i^T(X^TX)^{-1}x_ix_i^T)}{1-h_{ii}}\\
+&=I-(X^TX)^{-1}x_ix_i^T+\frac{(X^TX)^{-1}x_i(x_i^T-h_{ii}x_i^T)}{1-h_{ii}}\\
+&=I-(X^TX)^{-1}x_ix_i^T+\frac{(X^TX)^{-1}x_ix_i^T(1-h_{ii})}{1-h_{ii}}\\
+&=I-(X^TX)^{-1}x_ix_i^T+(X^TX)^{-1}x_ix_i^T\\
+&=I = \text{Left hand side} = I
+\end{aligned}
+$$
+So above equation has been proved.
+
+
 
 12. Exercise 9.13 from ALR.   Using the above, show
 
 $$\hat{\beta}_{(i)} = \hat{\beta} -  \frac{(X^TX)^{-1}x_i e_i}{1 - h_{ii}}$$
+According to $\hat\beta=(X^TX)^{-1}X^TY$, we have $\hat\beta_{(i)}=(X_{(i)}^TX_{(i)})^{-1}X_{(i)}^TY_{(i)}$ and by using the equation from Question 11, we can get the following:
+$$
+\begin{aligned}
+\hat\beta_{i} &=(X_{i}^TX_{i})^{-1}X_{i}^TY_{i}\\
+&= ((X^TX)^{-1} +\frac{(X^TX)^{-1}x_ix_i^T(X^TX)^{-1}}{1-h_{ii}})(X^TY-x_{i}y_{i})\\
+&=(X^TX)^{-1}X^TY-(X^TX)^{-1}x_{i}y_{i}+\frac{(X^TX)^{-1}x_ix_i^T  (X^TX)^{-1}}{1 - h_{ii}}X^TY-\frac
+{(X^TX)^{-1}x_ix_i^T(X^TX)^{-1}}{1-h_{ii}}x_iy_i\\
+&=\hat\beta+\frac{(X^TX)^{-1}x_ix_i^T\hat\beta}{1-h{ii}}-(X^TX)^{-1}x_iy_i-\frac{(X^TX)^{-1}x_ih_{ii}y_i}{1-h_{ii}}\\
+&=\hat\beta+\frac{(X^TX)^{-1}x_ix_i^T\hat\beta}{1-h_{ii}}-(X^TX)^{-1}x_iy_i(1+\frac{h_{ii}}{1-h_{ii}})\\
+&=\hat\beta+\frac{(X^TX)^{-1}x_ix_i^T\hat\beta}{1-h_{ii}}-(X^TX)^{-1}x_iy_i\frac{1}{1-h_{ii}}\\
+&=\hat\beta+\frac{(X^TX)^{-1}x_i(\hat{y_i}-y_i)}{1-h_{ii}}\\
+&=\hat\beta-\frac{(X^TX)^{-1}x_ie_i}{1-h_{ii}}
+\end{aligned}
+$$
+So the equation is proved.
+
 13. (optional)  Prove that the intercept in the added variable scatter plot will always be zero.  _Hint:  use the fact that if $H$ is the projection matrix for $X$ which contains a column of ones, then $1_n^T (I - H) = 0$ or $(I - H) 1_n = 0$.  Use this to show that the sample mean of residuals will always be zero if there is an intercept._
